@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <!--
+    Planejamento Narrativo e Estrutura:
+    Esta infografia SPA (Single Page Application) visa simular um gestor de gastos para construção residencial,
+    focando na facilidade de registro e visualização de dados.
+    A narrativa segue a jornada do usuário:
+    1.  Introdução: Contexto sobre a importância da gestão de gastos em obras.
+    2.  Entrada de Dados por Categoria: Seções dedicadas para "Mão de Obra", "Ferramentas", "Material da Obra" e "Gastos Indiretos", permitindo o registro detalhado de cada despesa.
+    3.  Resumo e Visualização: Uma seção centralizada para exibir o total de gastos por categoria e um gráfico de pizza para a distribuição percentual, além do total geral.
+    4.  Visualização Detalhada da Planilha: Uma nova seção para listar os gastos de cada categoria em formato de tabela, permitindo um acompanhamento mais granular.
+    5.  Previsão de Pagamentos Mensais: Adição de uma tabela para prever pagamentos futuros de cartões parcelados.
+    O objetivo é transformar dados brutos em insights compreensíveis rapidamente.
+    -->
+    <!--
+    Seleção de Visualizações e Justificativa (Confirmando NENHUM uso de SVG ou Mermaid JS):
+    - **Total de Gastos por Categoria (Tabela de Resumo):** Objetivo "Organizar" e "Informar". Uma tabela é a forma mais clara para exibir múltiplos pontos de dados com unidades diferentes (valores monetários) e permitir uma comparação fácil. Implementado com HTML/CSS (Tailwind).
+    - **Total Geral (Número Grande):** Objetivo "Informar". Um número grande e em destaque é ideal para transmitir um dado único e crucial (o custo total acumulado) de forma imediata. Implementado com HTML/CSS (Tailwind).
+    - **Gráfico de Pizza/Donut (Chart.js):** Objetivo "Comparar" e "Informar" a composição. O gráfico de pizza/donut é excelente para mostrar a proporção de cada categoria de gasto em relação ao total, facilitando a digestão visual da distribuição de custos. Implementado com Chart.js (Canvas). Chart.js é escolhido por sua versatilidade em tipos de gráficos comuns e renderização em Canvas.
+    - **Entrada de Dados (Formulários):** Objetivo "Organizar". Estruturas de formulários com campos claros e dropdowns para padronização. Implementado com HTML/CSS (Tailwind) e JavaScript para lógica de adição.
+    - **Tabelas de Gastos Detalhados por Categoria:** Objetivo "Organizar" e "Informar". Permite visualizar cada item de gasto com seus detalhes (data, descrição, valor, etc.) em um formato tabular que simula uma planilha. Implementado com HTML/CSS (Tailwind) e JavaScript para a renderização dinâmica.
+    - **Tabela de Previsão de Pagamentos Mensais:** Objetivo "Informar" e "Organizar". Uma tabela com meses e valores por cartão oferece uma previsão clara e estruturada dos compromissos financeiros futuros, essencial para o planejamento. Implementado com HTML/CSS (Tailwind) e JavaScript para a lógica de cálculo e renderização.
+    Nenhuma biblioteca ou tecnologia que gere SVG foi utilizada (como Plotly.js para gráficos avançados, pois o escopo não exigiu). Nenhuma ferramenta de diagrama como Mermaid JS foi utilizada; layouts de seção são feitos com HTML/CSS e Tailwind.
+    -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Gastos da Construção - Infografia</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Paleta de Cores "Energetic & Playful" (Adaptado de colour combinations) */
+        /* #FF5733 (Red-Orange) - Cor primária para botões/destaques */
+        /* #FFC300 (Amber Yellow) - Cor secundária */
+        /* #C70039 (Deep Red/Magenta) - Ênfase, avisos */
+        /* #900C3F (Darker Red/Purple) - Texto principal, fundos escuros */
+        /* #581845 (Very Dark Purple) - Fundos muito escuros */
+        :root {
+            --color-primary: #FF5733;
+            --color-secondary: #FFC300;
+            --color-emphasis: #C70039;
+            --color-dark-text: #900C3F;
+            --color-darker-bg: #581845;
+            --color-light-bg: #F3F4F6; /* Gray-100 */
+            --color-card-bg: #FFFFFF;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-light-bg);
+            color: var(--color-dark-text);
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px; /* Limite a largura máxima do gráfico */
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px; /* Altura base para o gráfico */
+            max-height: 400px;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .tab-button {
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        .tab-button.active {
+            background-color: var(--color-primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .tab-button:not(.active):hover {
+            background-color: var(--color-secondary);
+            color: var(--color-dark-text);
+        }
+        /* Estilos para o modal de confirmação */
+        .modal {
+            display: none; /* Escondido por padrão */
+            position: fixed; /* Fixo na tela */
+            z-index: 1000; /* Acima de outros elementos */
+            left: 0;
+            top: 0;
+            width: 100%; /* Largura total */
+            height: 100%; /* Altura total */
+            overflow: auto; /* Habilita scroll se necessário */
+            background-color: rgba(0,0,0,0.4); /* Fundo semi-transparente */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            width: 80%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .modal-buttons button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .modal-buttons .confirm-button {
+            background-color: var(--color-emphasis);
+            color: white;
+        }
+        .modal-buttons .cancel-button {
+            background-color: #ccc;
+            color: #333;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- Confirmação: NENHUM Mermaid JS e NENHUM SVG foram usados no código HTML ou JS. -->
+
+    <header class="text-center mb-12 py-8 rounded-lg shadow-lg" style="background-color: var(--color-darker-bg); color: white;">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4">Análise de Gastos da Construção Residencial</h1>
+        <p class="text-xl md:text-2xl opacity-90">Sua jornada para uma gestão de obras transparente e eficiente.</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto">
+        <section id="introduction" class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-3xl font-semibold mb-4 text-center" style="color: var(--color-emphasis);">Construindo Sonhos, Gerindo Custos</h2>
+            <p class="text-lg text-gray-800 leading-relaxed">
+                A construção de uma casa é um investimento significativo e uma jornada emocionante. Para garantir que seu projeto permaneça no caminho certo e dentro do orçamento, uma gestão financeira detalhada é crucial. Esta infografia interativa foi projetada para simplificar o acompanhamento dos seus gastos, oferecendo uma visão clara de onde cada Real está sendo investido. Entender a distribuição dos custos é o primeiro passo para tomar decisões informadas e otimizar cada etapa da sua obra.
+            </p>
+        </section>
+
+        <section id="data-entry" class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-3xl font-semibold mb-6 text-center" style="color: var(--color-emphasis);">Registro de Gastos Detalhados</h2>
+            <p class="text-lg text-gray-800 leading-relaxed mb-6">
+                Insira seus gastos nas categorias apropriadas. Isso permitirá uma análise precisa e um controle financeiro eficaz.
+            </p>
+
+            <div class="flex flex-wrap justify-center gap-4 mb-8">
+                <button class="tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90 active" data-tab="mao-de-obra" style="background-color: var(--color-primary); color: white;">Mão de Obra</button>
+                <button class="tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90" data-tab="ferramentas" style="background-color: var(--color-secondary); color: var(--color-dark-text);">Ferramentas</button>
+                <button class="tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90" data-tab="material-obra" style="background-color: var(--color-secondary); color: var(--color-dark-text);">Material da Obra</button>
+                <button class="tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90" data-tab="gastos-indiretos" style="background-color: var(--color-secondary); color: var(--color-dark-text);">Gastos Indiretos</button>
+            </div>
+
+            <div id="tab-content-container">
+                <div id="mao-de-obra" class="tab-content p-6 border border-gray-200 rounded-lg shadow-sm">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Gastos com Mão de Obra</h3>
+                    <form class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="col-span-1">
+                            <label for="data-mao-de-obra" class="block text-gray-700 text-sm font-bold mb-2">Data do Pagamento:</label>
+                            <input type="date" id="data-mao-de-obra" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="descricao-mao-de-obra" class="block text-gray-700 text-sm font-bold mb-2">Descrição:</label>
+                            <input type="text" id="descricao-mao-de-obra" placeholder="Ex: Diária Pedreiro João" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="unidades-mao-de-obra" class="block text-gray-700 text-sm font-bold mb-2">Unidades:</label>
+                            <input type="number" id="unidades-mao-de-obra" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="valor-mao-de-obra" class="block text-gray-700 text-sm font-bold mb-2">Valor R$:</label>
+                            <input type="number" id="valor-mao-de-obra" step="0.01" min="0" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="parcelas-mao-de-obra" class="block text-gray-700 text-sm font-bold mb-2">Parcelas:</label>
+                            <input type="number" id="parcelas-mao-de-obra" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="cartao-mao-de-obra" class="block text-gray-700 text-sm font-bold mb-2">Cartão/Forma de Pagamento:</label>
+                            <select id="cartao-mao-de-obra" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                <option value="Dinheiro">Dinheiro</option>
+                                <option value="PIX">PIX</option>
+                                <option value="Débito">Débito</option>
+                                <option value="Crédito (Meu)">Crédito (Meu)</option>
+                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="col-span-full flex justify-end mt-4">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" style="background-color: var(--color-primary);">Adicionar Gasto</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="ferramentas" class="tab-content p-6 border border-gray-200 rounded-lg shadow-sm hidden">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Gastos com Ferramentas</h3>
+                    <form class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="col-span-1">
+                            <label for="data-ferramentas" class="block text-gray-700 text-sm font-bold mb-2">Data do Pagamento:</label>
+                            <input type="date" id="data-ferramentas" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="descricao-ferramentas" class="block text-gray-700 text-sm font-bold mb-2">Descrição:</label>
+                            <input type="text" id="descricao-ferramentas" placeholder="Ex: Aluguel Betoneira" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="unidades-ferramentas" class="block text-gray-700 text-sm font-bold mb-2">Unidades:</label>
+                            <input type="number" id="unidades-ferramentas" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="valor-ferramentas" class="block text-gray-700 text-sm font-bold mb-2">Valor R$:</label>
+                            <input type="number" id="valor-ferramentas" step="0.01" min="0" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="parcelas-ferramentas" class="block text-gray-700 text-sm font-bold mb-2">Parcelas:</label>
+                            <input type="number" id="parcelas-ferramentas" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="cartao-ferramentas" class="block text-gray-700 text-sm font-bold mb-2">Cartão/Forma de Pagamento:</label>
+                            <select id="cartao-ferramentas" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                <option value="Dinheiro">Dinheiro</option>
+                                <option value="PIX">PIX</option>
+                                <option value="Débito">Débito</option>
+                                <option value="Crédito (Meu)">Crédito (Meu)</option>
+                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="col-span-full flex justify-end mt-4">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" style="background-color: var(--color-primary);">Adicionar Gasto</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="material-obra" class="tab-content p-6 border border-gray-200 rounded-lg shadow-sm hidden">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Gastos com Material da Obra</h3>
+                    <form class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="col-span-1">
+                            <label for="data-material-obra" class="block text-gray-700 text-sm font-bold mb-2">Data do Pagamento:</label>
+                            <input type="date" id="data-material-obra" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="descricao-material-obra" class="block text-gray-700 text-sm font-bold mb-2">Descrição:</label>
+                            <input type="text" id="descricao-material-obra" placeholder="Ex: Cimento (5 sacos)" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="unidades-material-obra" class="block text-gray-700 text-sm font-bold mb-2">Unidades:</label>
+                            <input type="number" id="unidades-material-obra" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="valor-material-obra" class="block text-gray-700 text-sm font-bold mb-2">Valor R$:</label>
+                            <input type="number" id="valor-material-obra" step="0.01" min="0" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="parcelas-material-obra" class="block text-gray-700 text-sm font-bold mb-2">Parcelas:</label>
+                            <input type="number" id="parcelas-material-obra" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="cartao-material-obra" class="block text-gray-700 text-sm font-bold mb-2">Cartão/Forma de Pagamento:</label>
+                            <select id="cartao-material-obra" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                <option value="Dinheiro">Dinheiro</option>
+                                <option value="PIX">PIX</option>
+                                <option value="Débito">Débito</option>
+                                <option value="Crédito (Meu)">Crédito (Meu)</option>
+                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="col-span-full flex justify-end mt-4">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" style="background-color: var(--color-primary);">Adicionar Gasto</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="gastos-indiretos" class="tab-content p-6 border border-gray-200 rounded-lg shadow-sm hidden">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Gastos Indiretos</h3>
+                    <form class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="col-span-1">
+                            <label for="data-gastos-indiretos" class="block text-gray-700 text-sm font-bold mb-2">Data do Pagamento:</label>
+                            <input type="date" id="data-gastos-indiretos" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="descricao-gastos-indiretos" class="block text-gray-700 text-sm font-bold mb-2">Descrição:</label>
+                            <input type="text" id="descricao-gastos-indiretos" placeholder="Ex: Taxa Licenciamento" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="unidades-gastos-indiretos" class="block text-gray-700 text-sm font-bold mb-2">Unidades:</label>
+                            <input type="number" id="unidades-gastos-indiretos" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="valor-gastos-indiretos" class="block text-gray-700 text-sm font-bold mb-2">Valor R$:</label>
+                            <input type="number" id="valor-gastos-indiretos" step="0.01" min="0" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="parcelas-gastos-indiretos" class="block text-gray-700 text-sm font-bold mb-2">Parcelas:</label>
+                            <input type="number" id="parcelas-gastos-indiretos" value="1" min="1" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="cartao-gastos-indiretos" class="block text-gray-700 text-sm font-bold mb-2">Cartão/Forma de Pagamento:</label>
+                            <select id="cartao-gastos-indiretos" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                <option value="Dinheiro">Dinheiro</option>
+                                <option value="PIX">PIX</option>
+                                <option value="Débito">Débito</option>
+                                <option value="Crédito (Meu)">Crédito (Meu)</option>
+                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="col-span-full flex justify-end mt-4">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" style="background-color: var(--color-primary);">Adicionar Gasto</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section id="summary-visualization" class="bg-white rounded-lg shadow-md p-6 mb-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div class="md:col-span-1">
+                <h2 class="text-3xl font-semibold mb-6" style="color: var(--color-emphasis);">Visão Geral dos Gastos</h2>
+                <p class="text-lg text-gray-800 leading-relaxed mb-6">
+                    Acompanhe o total gasto em cada categoria e a distribuição percentual para entender melhor a alocação de recursos em sua construção.
+                </p>
+                <div class="mb-6">
+                    <h3 class="text-2xl font-bold mb-2" style="color: var(--color-dark-text);">Total Geral de Gastos:</h3>
+                    <p id="total-geral" class="text-5xl font-extrabold" style="color: var(--color-primary);">R$ 0,00</p>
+                </div>
+                <div class="mb-4">
+                    <h3 class="text-2xl font-bold mb-2" style="color: var(--color-dark-text);">Gastos por Categoria:</h3>
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-2 px-4 border-b text-left text-gray-700">Categoria</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700">Valor Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summary-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                 <div class="mt-8 mb-4">
+                    <h3 class="text-2xl font-bold mb-2" style="color: var(--color-dark-text);">Previsão de Pagamentos Mensais por Cartão:</h3>
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Mês/Ano</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Crédito (Meu)</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Crédito (Irmão)</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Outros Cartões</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Total Mensal</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthly-payments-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-8 flex justify-center">
+                    <button id="clear-data-button" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" style="background-color: var(--color-emphasis);">Limpar Todos os Dados</button>
+                </div>
+            </div>
+            <div class="md:col-span-1">
+                <div class="chart-container">
+                    <canvas id="expensesChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="detailed-expenses" class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-3xl font-semibold mb-6 text-center" style="color: var(--color-emphasis);">Detalhes dos Gastos por Categoria</h2>
+            <p class="text-lg text-gray-800 leading-relaxed mb-6">
+                Explore a lista completa de cada gasto, organizado por categoria, como uma planilha.
+            </p>
+
+            <div class="flex flex-wrap justify-center gap-4 mb-8">
+                <button class="detailed-tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90 active" data-tab="mao-de-obra" style="background-color: var(--color-primary); color: white;">Mão de Obra</button>
+                <button class="detailed-tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90" data-tab="ferramentas" style="background-color: var(--color-secondary); color: var(--color-dark-text);">Ferramentas</button>
+                <button class="detailed-tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90" data-tab="material-obra" style="background-color: var(--color-secondary); color: var(--color-dark-text);">Material da Obra</button>
+                <button class="detailed-tab-button px-6 py-3 rounded-lg font-bold text-lg shadow-md hover:bg-opacity-90" data-tab="gastos-indiretos" style="background-color: var(--color-secondary); color: var(--color-dark-text);">Gastos Indiretos</button>
+            </div>
+
+            <div id="detailed-tab-content-container">
+                <div id="detailed-mao-de-obra" class="detailed-tab-content p-6 border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Lista de Gastos: Mão de Obra</h3>
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Data</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Descrição</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Unidades</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor R$</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailed-mao-de-obra-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="detailed-ferramentas" class="detailed-tab-content p-6 border border-gray-200 rounded-lg shadow-sm overflow-x-auto hidden">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Lista de Gastos: Ferramentas</h3>
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Data</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Descrição</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Unidades</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor R$</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailed-ferramentas-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="detailed-material-obra" class="detailed-tab-content p-6 border border-gray-200 rounded-lg shadow-sm overflow-x-auto hidden">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Lista de Gastos: Material da Obra</h3>
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Data</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Descrição</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Unidades</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor R$</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailed-material-obra-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="detailed-gastos-indiretos" class="detailed-tab-content p-6 border border-gray-200 rounded-lg shadow-sm overflow-x-auto hidden">
+                    <h3 class="text-2xl font-bold mb-4" style="color: var(--color-primary);">Lista de Gastos: Gastos Indiretos</h3>
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Data</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Descrição</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Unidades</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor R$</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailed-gastos-indiretos-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="management-insights" class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-3xl font-semibold mb-4 text-center" style="color: var(--color-emphasis);">Insights de Gestão e Otimização</h2>
+            <p class="text-lg text-gray-800 leading-relaxed mb-4">
+                A tecnologia facilita o controle e a análise dos seus gastos. Ao registrar cada despesa, você ganha visibilidade total sobre o projeto, identifica onde o dinheiro está sendo mais investido e pode ajustar o planejamento conforme a necessidade.
+            </p>
+            <p class="text-lg text-gray-800 leading-relaxed">
+                Gerenciar uma obra é um desafio, mas também uma oportunidade para otimizar recursos. Este tipo de controle permite antecipar problemas, negociar melhor com fornecedores e mão de obra, e, em última instância, garantir que sua casa seja construída de forma eficiente e sem surpresas financeiras desagradáveis.
+            </p>
+        </section>
+    </main>
+
+    <footer class="text-center mt-12 py-6 text-gray-600">
+        <p>&copy; 2025 Infografia de Gastos da Construção. Todos os direitos reservados.</p>
+    </footer>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <p class="text-xl mb-4">Tem certeza que deseja limpar todos os dados?</p>
+            <div class="modal-buttons">
+                <button id="confirmClear" class="confirm-button">Sim, Limpar</button>
+                <button id="cancelClear" class="cancel-button">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dados globais para armazenar os gastos de cada categoria
+        let expenses = {
+            'mao-de-obra': [],
+            'ferramentas': [],
+            'material-obra': [],
+            'gastos-indiretos': []
+        };
+
+        const categories = {
+            'mao-de-obra': 'Mão de Obra',
+            'ferramentas': 'Ferramentas',
+            'material-obra': 'Material da Obra',
+            'gastos-indiretos': 'Gastos Indiretos'
+        };
+
+        let expensesChart;
+        let activeDetailedTab = 'mao-de-obra'; // Categoria ativa padrão para a visualização detalhada
+
+        // Função para formatar números para a moeda Real (R$)
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(value);
+        }
+
+        // Função para quebrar rótulos longos em várias linhas para Chart.js
+        function wrapLabel(label) {
+            if (label.length <= 16) {
+                return label;
+            }
+            const words = label.split(' ');
+            const lines = [];
+            let currentLine = '';
+
+            words.forEach(word => {
+                if ((currentLine + word).length <= 16) {
+                    currentLine += (currentLine === '' ? '' : ' ') + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            });
+            lines.push(currentLine);
+            return lines;
+        }
+
+        // Função para salvar dados no localStorage
+        function saveData() {
+            localStorage.setItem('constructionExpenses', JSON.stringify(expenses));
+        }
+
+        // Função para carregar dados do localStorage
+        function loadData() {
+            const storedData = localStorage.getItem('constructionExpenses');
+            if (storedData) {
+                try {
+                    expenses = JSON.parse(storedData);
+                } catch (e) {
+                    console.error("Erro ao carregar dados do localStorage:", e);
+                    // Opcional: Limpar dados inválidos se ocorrer um erro de parse
+                    localStorage.removeItem('constructionExpenses');
+                }
+            }
+        }
+
+        // Função para calcular a previsão de pagamentos mensais por cartão
+        function calculateMonthlyForecast() {
+            const forecast = {};
+            const today = new Date();
+            // Define o início do mês atual para comparação
+            const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+            Object.values(expenses).flat().forEach(item => {
+                // Considera apenas pagamentos parcelados de cartões de crédito ou "Outro"
+                if (item.parcelas > 1 && (item.cartao === 'Crédito (Meu)' || item.cartao === 'Crédito (Irmão)' || item.cartao === 'Outro')) {
+                    const startDate = new Date(item.data);
+                    const monthlyAmount = item.valor / item.parcelas;
+
+                    for (let i = 0; i < item.parcelas; i++) {
+                        const paymentDate = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+
+                        // Ignora meses que já passaram completamente
+                        if (paymentDate < currentMonthStart) {
+                            continue;
+                        }
+
+                        const monthYearKey = paymentDate.toLocaleString('pt-BR', { month: 'short', year: 'numeric' });
+
+                        if (!forecast[monthYearKey]) {
+                            forecast[monthYearKey] = {
+                                'Crédito (Meu)': 0,
+                                'Crédito (Irmão)': 0,
+                                'Outros Cartões': 0, // Para o tipo "Outro" do dropdown
+                                'Total Mensal': 0,
+                                'dateOrder': paymentDate.getTime()
+                            };
+                        }
+
+                        if (item.cartao === 'Crédito (Meu)') {
+                            forecast[monthYearKey]['Crédito (Meu)'] += monthlyAmount;
+                        } else if (item.cartao === 'Crédito (Irmão)') {
+                            forecast[monthYearKey]['Crédito (Irmão)'] += monthlyAmount;
+                        } else if (item.cartao === 'Outro') {
+                            forecast[monthYearKey]['Outros Cartões'] += monthlyAmount;
+                        }
+                        forecast[monthYearKey]['Total Mensal'] += monthlyAmount;
+                    }
+                }
+            });
+
+            // Converte o objeto de previsão em um array e ordena por data
+            const sortedForecast = Object.keys(forecast).map(key => ({
+                monthYearKey: key,
+                ...forecast[key]
+            })).sort((a, b) => a.dateOrder - b.dateOrder);
+
+            return sortedForecast;
+        }
+
+        // Função para renderizar a tabela de previsão de pagamentos mensais
+        function renderMonthlyForecast() {
+            const monthlyPaymentsTableBody = document.getElementById('monthly-payments-table-body');
+            monthlyPaymentsTableBody.innerHTML = ''; // Limpa as linhas existentes
+
+            const forecastData = calculateMonthlyForecast();
+
+            if (forecastData.length === 0) {
+                const row = monthlyPaymentsTableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 5; // Abrange todas as colunas
+                cell.textContent = 'Nenhuma previsão de pagamentos parcelados nos próximos meses.';
+                cell.classList.add('text-center', 'py-4', 'text-gray-500');
+                return;
+            }
+
+            forecastData.forEach(monthData => {
+                const row = monthlyPaymentsTableBody.insertRow();
+                row.insertCell().textContent = monthData.monthYearKey;
+                row.cells[0].classList.add('whitespace-nowrap'); // Garante que mês/ano não quebre
+                row.insertCell().textContent = formatCurrency(monthData['Crédito (Meu)']);
+                row.cells[1].classList.add('text-right');
+                row.insertCell().textContent = formatCurrency(monthData['Crédito (Irmão)']);
+                row.cells[2].classList.add('text-right');
+                row.insertCell().textContent = formatCurrency(monthData['Outros Cartões']);
+                row.cells[3].classList.add('text-right');
+                row.insertCell().textContent = formatCurrency(monthData['Total Mensal']);
+                row.cells[4].classList.add('text-right', 'font-bold');
+            });
+        }
+
+
+        // Atualiza a tabela de resumo e o gráfico
+        function updateSummary() {
+            const summaryTableBody = document.getElementById('summary-table-body');
+            summaryTableBody.innerHTML = '';
+            let totalGeneral = 0;
+            const chartLabels = [];
+            const chartData = [];
+            const chartColors = [
+                '#FF5733', // Mão de Obra (Red-Orange)
+                '#FFC300', // Ferramentas (Amber Yellow)
+                '#C70039', // Material da Obra (Deep Red/Magenta)
+                '#900C3F'  // Gastos Indiretos (Darker Red/Purple)
+            ];
+
+            // Obter o valor da variável CSS --color-dark-text
+            const rootStyles = getComputedStyle(document.documentElement);
+            const darkTextColor = rootStyles.getPropertyValue('--color-dark-text').trim();
+
+            Object.keys(expenses).forEach((categoryKey, index) => {
+                const totalCategory = expenses[categoryKey].reduce((sum, item) => sum + item.valor, 0);
+                totalGeneral += totalCategory;
+
+                const row = summaryTableBody.insertRow();
+                row.insertCell().textContent = categories[categoryKey];
+                row.insertCell().textContent = formatCurrency(totalCategory);
+                row.cells[1].classList.add('text-right');
+
+                if (totalCategory > 0) {
+                    chartLabels.push(wrapLabel(categories[categoryKey]));
+                    chartData.push(totalCategory);
+                }
+            });
+
+            document.getElementById('total-geral').textContent = formatCurrency(totalGeneral);
+
+            // Atualiza o gráfico de pizza
+            if (expensesChart) {
+                expensesChart.data.labels = chartLabels;
+                expensesChart.data.datasets[0].data = chartData;
+                expensesChart.update();
+            } else {
+                const ctx = document.getElementById('expensesChart').getContext('2d');
+                expensesChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{
+                            data: chartData,
+                            backgroundColor: chartColors,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    font: {
+                                        size: 14
+                                    },
+                                    color: darkTextColor, /* Corrigido para usar a variável JS */
+                                    boxWidth: 20,
+                                    padding: 20
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(tooltipItems) {
+                                        const item = tooltipItems[0];
+                                        let label = item.chart.data.labels[item.dataIndex];
+                                        if (Array.isArray(label)) {
+                                            return label.join(' ');
+                                        } else {
+                                            return label;
+                                        }
+                                    },
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (Array.isArray(label)) {
+                                            label = label.join(' ');
+                                        }
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += formatCurrency(context.parsed);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            saveData(); // Salva os dados após cada atualização
+            renderDetailedExpenses(activeDetailedTab); // Renderiza a tabela detalhada da categoria ativa
+            renderMonthlyForecast(); // Renderiza a previsão mensal
+        }
+
+        // Função para renderizar a tabela de gastos detalhados para uma categoria específica
+        function renderDetailedExpenses(categoryKey) {
+            const tableBodyId = `detailed-${categoryKey}-table-body`;
+            const tableBody = document.getElementById(tableBodyId);
+            if (!tableBody) {
+                console.error(`Corpo da tabela não encontrado para a categoria: ${categoryKey}`);
+                return;
+            }
+            tableBody.innerHTML = ''; // Limpa a tabela existente
+
+            const categoryExpenses = expenses[categoryKey] || [];
+            if (categoryExpenses.length === 0) {
+                const row = tableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 7; // Cobrir todas as colunas
+                cell.textContent = 'Nenhum gasto registrado nesta categoria.';
+                cell.classList.add('text-center', 'py-4', 'text-gray-500');
+            } else {
+                categoryExpenses.forEach(item => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = item.data;
+                    row.insertCell().textContent = item.descricao;
+                    row.insertCell().textContent = item.unidades;
+                    row.cells[2].classList.add('text-right');
+                    row.insertCell().textContent = formatCurrency(item.valor);
+                    row.cells[3].classList.add('text-right');
+                    row.insertCell().textContent = item.parcelas;
+                    row.cells[4].classList.add('text-right');
+                    row.insertCell().textContent = item.cartao;
+                    row.insertCell().textContent = formatCurrency(item.valorParcela);
+                    row.cells[6].classList.add('text-right');
+                });
+            }
+        }
+
+        // Gerencia a troca de abas de entrada de dados
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.add('hidden'));
+
+                button.classList.add('active');
+                document.getElementById(button.dataset.tab).classList.remove('hidden');
+            });
+        });
+
+        // Gerencia a troca de abas de visualização detalhada
+        const detailedTabButtons = document.querySelectorAll('.detailed-tab-button');
+        const detailedTabContents = document.querySelectorAll('.detailed-tab-content');
+
+        detailedTabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                detailedTabButtons.forEach(btn => btn.classList.remove('active'));
+                detailedTabContents.forEach(content => content.classList.add('hidden'));
+
+                button.classList.add('active');
+                const targetTabId = `detailed-${button.dataset.tab}`;
+                document.getElementById(targetTabId).classList.remove('hidden');
+                activeDetailedTab = button.dataset.tab; // Atualiza a categoria ativa
+                renderDetailedExpenses(activeDetailedTab); // Renderiza a tabela da nova categoria ativa
+            });
+        });
+
+
+        // Adiciona ouvintes de evento para os formulários
+        Object.keys(expenses).forEach(categoryKey => {
+            const form = document.querySelector(`#${categoryKey} form`);
+            form.addEventListener('submit', (event) => {
+                event.preventDefault(); // Impede o recarregamento da página
+
+                const data = form.querySelector(`#data-${categoryKey}`).value;
+                const descricao = form.querySelector(`#descricao-${categoryKey}`).value;
+                const unidades = parseInt(form.querySelector(`#unidades-${categoryKey}`).value);
+                const valor = parseFloat(form.querySelector(`#valor-${categoryKey}`).value);
+                const parcelas = parseInt(form.querySelector(`#parcelas-${categoryKey}`).value);
+                const cartao = form.querySelector(`#cartao-${categoryKey}`).value;
+
+                if (!data || !descricao || isNaN(valor) || valor <= 0) {
+                    // Substituindo alert() por um modal customizado
+                    showCustomAlert('Por favor, preencha todos os campos obrigatórios (Data, Descrição, Valor R$).');
+                    return;
+                }
+
+                // Calcula o valor da parcela (se for o caso)
+                const valorParcela = parcelas > 1 ? valor / parcelas : valor;
+
+                expenses[categoryKey].push({
+                    data,
+                    descricao,
+                    unidades,
+                    valor,
+                    parcelas,
+                    cartao,
+                    valorParcela
+                });
+
+                // Limpa o formulário após a adição
+                form.reset();
+                // Garante que os valores padrão (unidades, parcelas) voltem ao normal
+                form.querySelector(`#unidades-${categoryKey}`).value = 1;
+                form.querySelector(`#parcelas-${categoryKey}`).value = 1;
+
+
+                updateSummary(); // Atualiza o resumo e o gráfico
+            });
+        });
+
+        // Lógica do modal de confirmação para limpar dados
+        const clearDataButton = document.getElementById('clear-data-button');
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmClearButton = document.getElementById('confirmClear');
+        const cancelClearButton = document.getElementById('cancelClear');
+
+        clearDataButton.addEventListener('click', () => {
+            confirmationModal.style.display = 'flex'; // Mostra o modal
+        });
+
+        confirmClearButton.addEventListener('click', () => {
+            localStorage.removeItem('constructionExpenses'); // Limpa os dados do localStorage
+            expenses = { // Reseta o objeto expenses
+                'mao-de-obra': [],
+                'ferramentas': [],
+                'material-obra': [],
+                'gastos-indiretos': []
+            };
+            updateSummary(); // Atualiza a UI para refletir os dados limpos
+            confirmationModal.style.display = 'none'; // Esconde o modal
+        });
+
+        cancelClearButton.addEventListener('click', () => {
+            confirmationModal.style.display = 'none'; // Esconde o modal
+        });
+
+        // Função para mostrar alertas personalizados (substitui alert())
+        function showCustomAlert(message) {
+            const customAlertModal = document.getElementById('confirmationModal'); // Reutiliza o modal
+            const modalContent = customAlertModal.querySelector('.modal-content');
+
+            // Salva o conteúdo original do modal antes de alterá-lo
+            const originalModalContent = modalContent.innerHTML;
+
+            modalContent.innerHTML = `<p class="text-xl mb-4">${message}</p><div class="modal-buttons"><button id="closeAlert" class="cancel-button">OK</button></div>`;
+            customAlertModal.style.display = 'flex';
+
+            document.getElementById('closeAlert').addEventListener('click', () => {
+                customAlertModal.style.display = 'none';
+                // Restaura o conteúdo original do modal
+                modalContent.innerHTML = originalModalContent;
+                // Re-adiciona os event listeners para os botões de limpar após restaurar o HTML
+                // É crucial re-adicionar, pois o innerHTML sobrescreve os listeners
+                confirmClearButton.addEventListener('click', () => {
+                    localStorage.removeItem('constructionExpenses');
+                    expenses = {
+                        'mao-de-obra': [], 'ferramentas': [], 'material-obra': [], 'gastos-indiretos': []
+                    };
+                    updateSummary();
+                    confirmationModal.style.display = 'none';
+                });
+                cancelClearButton.addEventListener('click', () => {
+                    confirmationModal.style.display = 'none';
+                });
+            });
+        }
+
+
+        // Inicializa o resumo e o gráfico na carga da página
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData(); // Carrega os dados salvos ao iniciar
+            updateSummary(); // Atualiza a interface com os dados carregados
+            // Garante que a primeira aba detalhada seja exibida ao carregar
+            const initialDetailedTabButton = document.querySelector('.detailed-tab-button.active');
+            if (initialDetailedTabButton) {
+                const targetTabId = `detailed-${initialDetailedTabButton.dataset.tab}`;
+                document.getElementById(targetTabId).classList.remove('hidden');
+                activeDetailedTab = initialDetailedTabButton.dataset.tab;
+                renderDetailedExpenses(activeDetailedTab);
+            }
+        });
+    </script>
+</body>
+</html>
+
