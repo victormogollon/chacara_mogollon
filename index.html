@@ -28,6 +28,159 @@
     <title>Gestor de Gastos da Construção - Infografia</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase CDN Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables for Firebase (MUST BE USED)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false; // Flag to ensure auth is ready before Firestore operations
+
+        // Data storage for the app (will be populated from Firestore)
+        window.expenses = {
+            'mao-de-obra': [],
+            'ferramentas': [],
+            'material-obra': [],
+            'gastos-indiretos': []
+        };
+
+        // Categories mapping
+        window.categories = { // Made global
+            'mao-de-obra': 'Mão de Obra',
+            'ferramentas': 'Ferramentas',
+            'material-obra': 'Material da Obra',
+            'gastos-indiretos': 'Gastos Indiretos'
+        };
+
+
+        // Initialize Firebase
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            console.log("Firebase initialized successfully.");
+        } catch (error) {
+            console.error("Erro ao inicializar Firebase:", error);
+            // Optionally, show a custom alert for Firebase initialization failure
+            window.showCustomAlert("Erro ao inicializar o Firebase. Algumas funcionalidades podem não estar disponíveis.");
+        }
+
+        // Authenticate user and set up Firestore listener
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
+                isAuthReady = true;
+                console.log("Usuário autenticado:", userId);
+                setupFirestoreListener(); // Setup listener AFTER authentication
+            } else {
+                console.log("Nenhum usuário autenticado, tentando login anônimo...");
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Login com token customizado bem-sucedido.");
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log("Login anônimo bem-sucedido.");
+                    }
+                } catch (error) {
+                    console.error("Erro ao fazer login:", error);
+                    window.showCustomAlert("Erro ao fazer login. Você não poderá salvar dados.");
+                }
+            }
+        });
+
+        // Function to set up real-time Firestore listener
+        function setupFirestoreListener() {
+            if (!isAuthReady) {
+                console.warn("Firestore listener não pode ser configurado: Autenticação não pronta.");
+                return;
+            }
+
+            const expensesCollectionPath = `artifacts/${appId}/public/data/expenses`;
+            const q = collection(db, expensesCollectionPath);
+
+            onSnapshot(q, (snapshot) => {
+                const newExpenses = {
+                    'mao-de-obra': [],
+                    'ferramentas': [],
+                    'material-obra': [],
+                    'gastos-indiretos': []
+                };
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.category && newExpenses[data.category]) {
+                        newExpenses[data.category].push({ id: doc.id, ...data });
+                    }
+                });
+                window.expenses = newExpenses; // Update global expenses object
+                console.log("Dados do Firestore atualizados:", window.expenses);
+                window.updateSummary(); // Call the global update function
+            }, (error) => {
+                console.error("Erro ao ouvir o Firestore:", error);
+                window.showCustomAlert("Erro ao carregar dados do Firestore. As atualizações podem não ser em tempo real.");
+            });
+        }
+
+        // Expose functions globally for HTML/inline script access
+        window.formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        window.wrapLabel = (label) => {
+            if (label.length <= 16) return label;
+            const words = label.split(' ');
+            const lines = [];
+            let currentLine = '';
+            words.forEach(word => {
+                if ((currentLine + word).length <= 16) {
+                    currentLine += (currentLine === '' ? '' : ' ') + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            });
+            lines.push(currentLine);
+            return lines;
+        };
+
+        // --- Custom Alert/Confirmation Modal Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const modalHtml = `
+                <div id="customAlertModal" class="modal">
+                    <div class="modal-content">
+                        <p id="customAlertMessage" class="text-xl mb-4"></p>
+                        <div class="modal-buttons">
+                            <button id="alertOkButton" class="cancel-button">OK</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            window.showCustomAlert = (message) => {
+                const customAlertModal = document.getElementById('customAlertModal');
+                const customAlertMessage = document.getElementById('customAlertMessage');
+                const alertOkButton = document.getElementById('alertOkButton');
+
+                customAlertMessage.textContent = message;
+                customAlertModal.style.display = 'flex';
+
+                const closeAlert = () => {
+                    customAlertModal.style.display = 'none';
+                    alertOkButton.removeEventListener('click', closeAlert);
+                };
+                alertOkButton.addEventListener('click', closeAlert);
+            };
+        });
+
+    </script>
     <style>
         /* Paleta de Cores "Energetic & Playful" (Adaptado de colour combinations) */
         /* #FF5733 (Red-Orange) - Cor primária para botões/destaques */
@@ -79,7 +232,7 @@
             background-color: var(--color-secondary);
             color: var(--color-dark-text);
         }
-        /* Estilos para o modal de confirmação */
+        /* Estilos para o modal de confirmação e alerta */
         .modal {
             display: none; /* Escondido por padrão */
             position: fixed; /* Fixo na tela */
@@ -130,6 +283,7 @@
     <header class="text-center mb-12 py-8 rounded-lg shadow-lg" style="background-color: var(--color-darker-bg); color: white;">
         <h1 class="text-4xl md:text-5xl font-bold mb-4">Análise de Gastos da Construção Residencial</h1>
         <p class="text-xl md:text-2xl opacity-90">Sua jornada para uma gestão de obras transparente e eficiente.</p>
+        <div id="user-id-display" class="text-sm mt-2 opacity-75">Carregando ID do Usuário...</div>
     </header>
 
     <main class="max-w-6xl mx-auto">
@@ -394,6 +548,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="detailed-mao-de-obra-table-body">
@@ -414,6 +569,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="detailed-ferramentas-table-body">
@@ -434,6 +590,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="detailed-material-obra-table-body">
@@ -454,6 +611,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="detailed-gastos-indiretos-table-body">
@@ -479,46 +637,114 @@
         <p>&copy; 2025 Infografia de Gastos da Construção. Todos os direitos reservados.</p>
     </footer>
 
-    <!-- Modal de Confirmação -->
+    <!-- Modal de Confirmação para Limpar Dados -->
     <div id="confirmationModal" class="modal">
         <div class="modal-content">
-            <p class="text-xl mb-4">Tem certeza que deseja limpar todos os dados?</p>
+            <p class="text-xl mb-4">Tem certeza que deseja limpar TODOS os dados? Esta ação é irreversível e afetará todos os usuários.</p>
             <div class="modal-buttons">
-                <button id="confirmClear" class="confirm-button">Sim, Limpar</button>
+                <button id="confirmClear" class="confirm-button">Sim, Limpar Tudo</button>
                 <button id="cancelClear" class="cancel-button">Cancelar</button>
             </div>
         </div>
     </div>
 
-    <script>
-        // Dados globais para armazenar os gastos de cada categoria
-        let expenses = {
-            'mao-de-obra': [],
-            'ferramentas': [],
-            'material-obra': [],
-            'gastos-indiretos': []
-        };
+    <script type="module">
+        // Importações do Firebase (já definidas no cabeçalho, mas repetidas para clareza no script)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, addDoc, onSnapshot, collection, query, getDocs, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const categories = {
-            'mao-de-obra': 'Mão de Obra',
-            'ferramentas': 'Ferramentas',
-            'material-obra': 'Material da Obra',
-            'gastos-indiretos': 'Gastos Indiretos'
-        };
+        // Variáveis globais de Firebase (já definidas no cabeçalho)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let expensesChart;
-        let activeDetailedTab = 'mao-de-obra'; // Categoria ativa padrão para a visualização detalhada
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
 
-        // Função para formatar números para a moeda Real (R$)
-        function formatCurrency(value) {
-            return new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            }).format(value);
+        // Inicializa Firebase
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            console.log("Firebase inicializado com sucesso.");
+        } catch (error) {
+            console.error("Erro ao inicializar Firebase:", error);
+            window.showCustomAlert("Erro ao inicializar o Firebase. Algumas funcionalidades podem não estar disponíveis.");
         }
 
+        // Autentica o usuário e configura o listener do Firestore
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
+                isAuthReady = true;
+                console.log("Usuário autenticado:", userId);
+                setupFirestoreListener(); // Configura o listener APÓS a autenticação
+            } else {
+                console.log("Nenhum usuário autenticado, tentando login anônimo...");
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Login com token customizado bem-sucedido.");
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log("Login anônimo bem-sucedido.");
+                    }
+                } catch (error) {
+                    console.error("Erro ao fazer login:", error);
+                    window.showCustomAlert("Erro ao fazer login. Você não poderá salvar/sincronizar dados.");
+                }
+            }
+        });
+
+        // Coleção Firestore para armazenar gastos
+        const expensesCollectionPath = `artifacts/${appId}/public/data/expenses`;
+
+        // Função para configurar o listener em tempo real do Firestore
+        function setupFirestoreListener() {
+            if (!isAuthReady || !db) {
+                console.warn("Firestore listener não pode ser configurado: Autenticação/DB não prontos.");
+                return;
+            }
+
+            const q = collection(db, expensesCollectionPath);
+
+            onSnapshot(q, (snapshot) => {
+                const newExpenses = {
+                    'mao-de-obra': [],
+                    'ferramentas': [],
+                    'material-obra': [],
+                    'gastos-indiretos': []
+                };
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    // Adiciona o ID do documento para futuras operações de deleção
+                    if (data.category && newExpenses[data.category]) {
+                        newExpenses[data.category].push({ id: doc.id, ...data });
+                    }
+                });
+                window.expenses = newExpenses; // Atualiza o objeto global de gastos
+                console.log("Dados do Firestore atualizados:", window.expenses);
+                window.updateSummary(); // Chama a função global de atualização da UI
+            }, (error) => {
+                console.error("Erro ao ouvir o Firestore:", error);
+                window.showCustomAlert("Erro ao carregar dados do Firestore. As atualizações podem não ser em tempo real.");
+            });
+        }
+
+
+        // Função para formatar números para a moeda Real (R$)
+        window.formatCurrency = (value) => new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(value);
+
         // Função para quebrar rótulos longos em várias linhas para Chart.js
-        function wrapLabel(label) {
+        window.wrapLabel = (label) => {
             if (label.length <= 16) {
                 return label;
             }
@@ -536,26 +762,10 @@
             });
             lines.push(currentLine);
             return lines;
-        }
+        };
 
-        // Função para salvar dados no localStorage
-        function saveData() {
-            localStorage.setItem('constructionExpenses', JSON.stringify(expenses));
-        }
-
-        // Função para carregar dados do localStorage
-        function loadData() {
-            const storedData = localStorage.getItem('constructionExpenses');
-            if (storedData) {
-                try {
-                    expenses = JSON.parse(storedData);
-                } catch (e) {
-                    console.error("Erro ao carregar dados do localStorage:", e);
-                    // Opcional: Limpar dados inválidos se ocorrer um erro de parse
-                    localStorage.removeItem('constructionExpenses');
-                }
-            }
-        }
+        let expensesChart;
+        let activeDetailedTab = 'mao-de-obra'; // Categoria ativa padrão para a visualização detalhada
 
         // Função para calcular a previsão de pagamentos mensais por cartão
         function calculateMonthlyForecast() {
@@ -564,7 +774,7 @@
             // Define o início do mês atual para comparação
             const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-            Object.values(expenses).flat().forEach(item => {
+            Object.values(window.expenses).flat().forEach(item => {
                 // Considera apenas pagamentos parcelados de cartões de crédito ou "Outro"
                 if (item.parcelas > 1 && (item.cartao === 'Crédito (Meu)' || item.cartao === 'Crédito (Irmão)' || item.cartao === 'Outro')) {
                     const startDate = new Date(item.data);
@@ -631,20 +841,19 @@
                 const row = monthlyPaymentsTableBody.insertRow();
                 row.insertCell().textContent = monthData.monthYearKey;
                 row.cells[0].classList.add('whitespace-nowrap'); // Garante que mês/ano não quebre
-                row.insertCell().textContent = formatCurrency(monthData['Crédito (Meu)']);
+                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Meu)']);
                 row.cells[1].classList.add('text-right');
-                row.insertCell().textContent = formatCurrency(monthData['Crédito (Irmão)']);
+                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Irmão)']);
                 row.cells[2].classList.add('text-right');
-                row.insertCell().textContent = formatCurrency(monthData['Outros Cartões']);
+                row.insertCell().textContent = window.formatCurrency(monthData['Outros Cartões']);
                 row.cells[3].classList.add('text-right');
-                row.insertCell().textContent = formatCurrency(monthData['Total Mensal']);
+                row.insertCell().textContent = window.formatCurrency(monthData['Total Mensal']);
                 row.cells[4].classList.add('text-right', 'font-bold');
             });
         }
 
-
         // Atualiza a tabela de resumo e o gráfico
-        function updateSummary() {
+        window.updateSummary = () => { // Make it global
             const summaryTableBody = document.getElementById('summary-table-body');
             summaryTableBody.innerHTML = '';
             let totalGeneral = 0;
@@ -657,28 +866,26 @@
                 '#900C3F'  // Gastos Indiretos (Darker Red/Purple)
             ];
 
-            // Obter o valor da variável CSS --color-dark-text
             const rootStyles = getComputedStyle(document.documentElement);
             const darkTextColor = rootStyles.getPropertyValue('--color-dark-text').trim();
 
-            Object.keys(expenses).forEach((categoryKey, index) => {
-                const totalCategory = expenses[categoryKey].reduce((sum, item) => sum + item.valor, 0);
+            Object.keys(window.expenses).forEach((categoryKey, index) => {
+                const totalCategory = window.expenses[categoryKey].reduce((sum, item) => sum + item.valor, 0);
                 totalGeneral += totalCategory;
 
                 const row = summaryTableBody.insertRow();
-                row.insertCell().textContent = categories[categoryKey];
-                row.insertCell().textContent = formatCurrency(totalCategory);
+                row.insertCell().textContent = window.categories[categoryKey]; // Use window.categories
+                row.insertCell().textContent = window.formatCurrency(totalCategory);
                 row.cells[1].classList.add('text-right');
 
                 if (totalCategory > 0) {
-                    chartLabels.push(wrapLabel(categories[categoryKey]));
+                    chartLabels.push(window.wrapLabel(window.categories[categoryKey])); // Use window.categories
                     chartData.push(totalCategory);
                 }
             });
 
-            document.getElementById('total-geral').textContent = formatCurrency(totalGeneral);
+            document.getElementById('total-geral').textContent = window.formatCurrency(totalGeneral);
 
-            // Atualiza o gráfico de pizza
             if (expensesChart) {
                 expensesChart.data.labels = chartLabels;
                 expensesChart.data.datasets[0].data = chartData;
@@ -705,7 +912,7 @@
                                     font: {
                                         size: 14
                                     },
-                                    color: darkTextColor, /* Corrigido para usar a variável JS */
+                                    color: darkTextColor,
                                     boxWidth: 20,
                                     padding: 20
                                 }
@@ -730,7 +937,7 @@
                                             label += ': ';
                                         }
                                         if (context.parsed !== null) {
-                                            label += formatCurrency(context.parsed);
+                                            label += window.formatCurrency(context.parsed);
                                         }
                                         return label;
                                     }
@@ -740,10 +947,9 @@
                     }
                 });
             }
-            saveData(); // Salva os dados após cada atualização
-            renderDetailedExpenses(activeDetailedTab); // Renderiza a tabela detalhada da categoria ativa
-            renderMonthlyForecast(); // Renderiza a previsão mensal
-        }
+            renderDetailedExpenses(activeDetailedTab);
+            renderMonthlyForecast();
+        };
 
         // Função para renderizar a tabela de gastos detalhados para uma categoria específica
         function renderDetailedExpenses(categoryKey) {
@@ -753,13 +959,13 @@
                 console.error(`Corpo da tabela não encontrado para a categoria: ${categoryKey}`);
                 return;
             }
-            tableBody.innerHTML = ''; // Limpa a tabela existente
+            tableBody.innerHTML = '';
 
-            const categoryExpenses = expenses[categoryKey] || [];
+            const categoryExpenses = window.expenses[categoryKey] || [];
             if (categoryExpenses.length === 0) {
                 const row = tableBody.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 7; // Cobrir todas as colunas
+                cell.colSpan = 8; // Aumentado para incluir a coluna de Ações
                 cell.textContent = 'Nenhum gasto registrado nesta categoria.';
                 cell.classList.add('text-center', 'py-4', 'text-gray-500');
             } else {
@@ -769,13 +975,37 @@
                     row.insertCell().textContent = item.descricao;
                     row.insertCell().textContent = item.unidades;
                     row.cells[2].classList.add('text-right');
-                    row.insertCell().textContent = formatCurrency(item.valor);
+                    row.insertCell().textContent = window.formatCurrency(item.valor);
                     row.cells[3].classList.add('text-right');
                     row.insertCell().textContent = item.parcelas;
                     row.cells[4].classList.add('text-right');
                     row.insertCell().textContent = item.cartao;
-                    row.insertCell().textContent = formatCurrency(item.valorParcela);
+                    row.insertCell().textContent = window.formatCurrency(item.valorParcela);
                     row.cells[6].classList.add('text-right');
+
+                    const actionsCell = row.insertCell();
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Remover';
+                    deleteButton.classList.add('bg-red-400', 'hover:bg-red-600', 'text-white', 'px-3', 'py-1', 'rounded');
+                    deleteButton.onclick = async () => {
+                        if (!isAuthReady || !db) {
+                             window.showCustomAlert("Não é possível remover: autenticação/DB não prontos.");
+                             return;
+                        }
+                        const confirmDelete = window.confirm("Tem certeza que deseja remover este gasto?");
+                        if (confirmDelete) {
+                            try {
+                                await deleteDoc(doc(db, expensesCollectionPath, item.id));
+                                console.log("Documento removido com sucesso:", item.id);
+                                // onSnapshot will handle UI update
+                            } catch (error) {
+                                console.error("Erro ao remover documento:", error);
+                                window.showCustomAlert("Erro ao remover gasto. Tente novamente.");
+                            }
+                        }
+                    };
+                    actionsCell.appendChild(deleteButton);
+                    actionsCell.classList.add('text-center');
                 });
             }
         }
@@ -806,17 +1036,21 @@
                 button.classList.add('active');
                 const targetTabId = `detailed-${button.dataset.tab}`;
                 document.getElementById(targetTabId).classList.remove('hidden');
-                activeDetailedTab = button.dataset.tab; // Atualiza a categoria ativa
-                renderDetailedExpenses(activeDetailedTab); // Renderiza a tabela da nova categoria ativa
+                activeDetailedTab = button.dataset.tab;
+                renderDetailedExpenses(activeDetailedTab);
             });
         });
 
-
         // Adiciona ouvintes de evento para os formulários
-        Object.keys(expenses).forEach(categoryKey => {
+        Object.keys(window.categories).forEach(categoryKey => { // Use window.categories
             const form = document.querySelector(`#${categoryKey} form`);
-            form.addEventListener('submit', (event) => {
-                event.preventDefault(); // Impede o recarregamento da página
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                if (!isAuthReady || !db) {
+                    window.showCustomAlert("Não é possível adicionar gasto: autenticação/DB não prontos. Tente novamente.");
+                    return;
+                }
 
                 const data = form.querySelector(`#data-${categoryKey}`).value;
                 const descricao = form.querySelector(`#descricao-${categoryKey}`).value;
@@ -826,32 +1060,35 @@
                 const cartao = form.querySelector(`#cartao-${categoryKey}`).value;
 
                 if (!data || !descricao || isNaN(valor) || valor <= 0) {
-                    // Substituindo alert() por um modal customizado
-                    showCustomAlert('Por favor, preencha todos os campos obrigatórios (Data, Descrição, Valor R$).');
+                    window.showCustomAlert('Por favor, preencha todos os campos obrigatórios (Data, Descrição, Valor R$).');
                     return;
                 }
 
-                // Calcula o valor da parcela (se for o caso)
                 const valorParcela = parcelas > 1 ? valor / parcelas : valor;
 
-                expenses[categoryKey].push({
+                const newExpense = {
+                    category: categoryKey,
                     data,
                     descricao,
                     unidades,
                     valor,
                     parcelas,
                     cartao,
-                    valorParcela
-                });
+                    valorParcela,
+                    timestamp: serverTimestamp() // Adiciona um timestamp do servidor
+                };
 
-                // Limpa o formulário após a adição
-                form.reset();
-                // Garante que os valores padrão (unidades, parcelas) voltem ao normal
-                form.querySelector(`#unidades-${categoryKey}`).value = 1;
-                form.querySelector(`#parcelas-${categoryKey}`).value = 1;
-
-
-                updateSummary(); // Atualiza o resumo e o gráfico
+                try {
+                    await addDoc(collection(db, expensesCollectionPath), newExpense);
+                    console.log("Gasto adicionado ao Firestore:", newExpense);
+                    form.reset();
+                    form.querySelector(`#unidades-${categoryKey}`).value = 1;
+                    form.querySelector(`#parcelas-${categoryKey}`).value = 1;
+                    // onSnapshot will automatically trigger updateSummary()
+                } catch (error) {
+                    console.error("Erro ao adicionar gasto ao Firestore:", error);
+                    window.showCustomAlert("Erro ao adicionar gasto. Tente novamente.");
+                }
             });
         });
 
@@ -862,62 +1099,43 @@
         const cancelClearButton = document.getElementById('cancelClear');
 
         clearDataButton.addEventListener('click', () => {
-            confirmationModal.style.display = 'flex'; // Mostra o modal
+            confirmationModal.style.display = 'flex';
         });
 
-        confirmClearButton.addEventListener('click', () => {
-            localStorage.removeItem('constructionExpenses'); // Limpa os dados do localStorage
-            expenses = { // Reseta o objeto expenses
-                'mao-de-obra': [],
-                'ferramentas': [],
-                'material-obra': [],
-                'gastos-indiretos': []
-            };
-            updateSummary(); // Atualiza a UI para refletir os dados limpos
-            confirmationModal.style.display = 'none'; // Esconde o modal
+        confirmClearButton.addEventListener('click', async () => {
+            if (!isAuthReady || !db) {
+                window.showCustomAlert("Não é possível limpar dados: autenticação/DB não prontos.");
+                confirmationModal.style.display = 'none';
+                return;
+            }
+
+            try {
+                const q = collection(db, expensesCollectionPath);
+                const querySnapshot = await getDocs(q);
+                const deletePromises = [];
+                querySnapshot.forEach((docItem) => {
+                    deletePromises.push(deleteDoc(doc(db, expensesCollectionPath, docItem.id)));
+                });
+                await Promise.all(deletePromises);
+                console.log("Todos os documentos removidos do Firestore.");
+                confirmationModal.style.display = 'none';
+                // onSnapshot will handle UI update automatically
+            } catch (error) {
+                console.error("Erro ao limpar dados do Firestore:", error);
+                window.showCustomAlert("Erro ao limpar dados. Tente novamente.");
+                confirmationModal.style.display = 'none';
+            }
         });
 
         cancelClearButton.addEventListener('click', () => {
-            confirmationModal.style.display = 'none'; // Esconde o modal
+            confirmationModal.style.display = 'none';
         });
 
-        // Função para mostrar alertas personalizados (substitui alert())
-        function showCustomAlert(message) {
-            const customAlertModal = document.getElementById('confirmationModal'); // Reutiliza o modal
-            const modalContent = customAlertModal.querySelector('.modal-content');
-
-            // Salva o conteúdo original do modal antes de alterá-lo
-            const originalModalContent = modalContent.innerHTML;
-
-            modalContent.innerHTML = `<p class="text-xl mb-4">${message}</p><div class="modal-buttons"><button id="closeAlert" class="cancel-button">OK</button></div>`;
-            customAlertModal.style.display = 'flex';
-
-            document.getElementById('closeAlert').addEventListener('click', () => {
-                customAlertModal.style.display = 'none';
-                // Restaura o conteúdo original do modal
-                modalContent.innerHTML = originalModalContent;
-                // Re-adiciona os event listeners para os botões de limpar após restaurar o HTML
-                // É crucial re-adicionar, pois o innerHTML sobrescreve os listeners
-                confirmClearButton.addEventListener('click', () => {
-                    localStorage.removeItem('constructionExpenses');
-                    expenses = {
-                        'mao-de-obra': [], 'ferramentas': [], 'material-obra': [], 'gastos-indiretos': []
-                    };
-                    updateSummary();
-                    confirmationModal.style.display = 'none';
-                });
-                cancelClearButton.addEventListener('click', () => {
-                    confirmationModal.style.display = 'none';
-                });
-            });
-        }
-
-
-        // Inicializa o resumo e o gráfico na carga da página
+        // Inicialização
         document.addEventListener('DOMContentLoaded', () => {
-            loadData(); // Carrega os dados salvos ao iniciar
-            updateSummary(); // Atualiza a interface com os dados carregados
-            // Garante que a primeira aba detalhada seja exibida ao carregar
+            // A inicialização principal do Firebase e a configuração do listener são feitas no script type="module" no head
+            // e dependem de onAuthStateChanged para garantir que o DB esteja pronto.
+            // Apenas garanta que a aba detalhada inicial seja exibida.
             const initialDetailedTabButton = document.querySelector('.detailed-tab-button.active');
             if (initialDetailedTabButton) {
                 const targetTabId = `detailed-${initialDetailedTabButton.dataset.tab}`;
@@ -929,4 +1147,3 @@
     </script>
 </body>
 </html>
-
