@@ -194,8 +194,8 @@
                                 <option value="Dinheiro">Dinheiro</option>
                                 <option value="PIX">PIX</option>
                                 <option value="Débito">Débito</option>
-                                <option value="Crédito (Meu)">Crédito (Meu)</option>
-                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Crédito (Victor)">Crédito (Victor)</option>
+                                <option value="Crédito (Miguel)">Crédito (Miguel)</option>
                                 <option value="Outro">Outro</option>
                             </select>
                         </div>
@@ -234,8 +234,8 @@
                                 <option value="Dinheiro">Dinheiro</option>
                                 <option value="PIX">PIX</option>
                                 <option value="Débito">Débito</option>
-                                <option value="Crédito (Meu)">Crédito (Meu)</option>
-                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Crédito (Victor)">Crédito (Victor)</option>
+                                <option value="Crédito (Miguel)">Crédito (Miguel)</option>
                                 <option value="Outro">Outro</option>
                             </select>
                         </div>
@@ -274,8 +274,8 @@
                                 <option value="Dinheiro">Dinheiro</option>
                                 <option value="PIX">PIX</option>
                                 <option value="Débito">Débito</option>
-                                <option value="Crédito (Meu)">Crédito (Meu)</option>
-                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Crédito (Victor)">Crédito (Victor)</option>
+                                <option value="Crédito (Miguel)">Crédito (Miguel)</option>
                                 <option value="Outro">Outro</option>
                             </select>
                         </div>
@@ -314,8 +314,8 @@
                                 <option value="Dinheiro">Dinheiro</option>
                                 <option value="PIX">PIX</option>
                                 <option value="Débito">Débito</option>
-                                <option value="Crédito (Meu)">Crédito (Meu)</option>
-                                <option value="Crédito (Irmão)">Crédito (Irmão)</option>
+                                <option value="Crédito (Victor)">Crédito (Victor)</option>
+                                <option value="Crédito (Miguel)">Crédito (Miguel)</option>
                                 <option value="Outro">Outro</option>
                             </select>
                         </div>
@@ -357,8 +357,8 @@
                         <thead>
                             <tr class="bg-gray-100">
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Mês/Ano</th>
-                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Crédito (Meu)</th>
-                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Crédito (Irmão)</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Crédito (Victor)</th>
+                                <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Crédito (Miguel)</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Outros Cartões</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Total Mensal</th>
                             </tr>
@@ -524,7 +524,7 @@
         const firebaseConfig = {
             apiKey: "AIzaSyDELdHka4K6PvyRNRsH3gLcGpOGejKoAas",
             authDomain: "chacara-mogollon.firebaseapp.com",
-            projectId: "chacara-mogollon", // <-- VERIFIQUE SE ESTE É EXATAMENTE O SEU PROJECT ID DO FIREBASE
+            projectId: "chacara-mogollon",
             storageBucket: "chacara-mogollon.firebasestorage.app",
             messagingSenderId: "37237249124",
             appId: "1:37237249124:web:532839cbdf56ad14fa7b71"
@@ -721,7 +721,8 @@
             const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
             Object.values(window.expenses).flat().forEach(item => {
-                if (item.parcelas > 1 && (item.cartao === 'Crédito (Meu)' || item.cartao === 'Crédito (Irmão)' || item.cartao === 'Outro')) {
+                // Modificado para usar "Crédito (Victor)" e "Crédito (Miguel)"
+                if (item.parcelas > 1 && (item.cartao === 'Crédito (Victor)' || item.cartao === 'Crédito (Miguel)' || item.cartao === 'Outro')) {
                     const startDate = new Date(item.data);
                     const monthlyAmount = item.valor / item.parcelas;
 
@@ -736,18 +737,18 @@
 
                         if (!forecast[monthYearKey]) {
                             forecast[monthYearKey] = {
-                                'Crédito (Meu)': 0,
-                                'Crédito (Irmão)': 0,
+                                'Crédito (Victor)': 0, // Atualizado
+                                'Crédito (Miguel)': 0, // Atualizado
                                 'Outros Cartões': 0,
                                 'Total Mensal': 0,
                                 'dateOrder': paymentDate.getTime()
                             };
                         }
 
-                        if (item.cartao === 'Crédito (Meu)') {
-                            forecast[monthYearKey]['Crédito (Meu)'] += monthlyAmount;
-                        } else if (item.cartao === 'Crédito (Irmão)') {
-                            forecast[monthYearKey]['Crédito (Irmão)'] += monthlyAmount;
+                        if (item.cartao === 'Crédito (Victor)') { // Atualizado
+                            forecast[monthYearKey]['Crédito (Victor)'] += monthlyAmount;
+                        } else if (item.cartao === 'Crédito (Miguel)') { // Atualizado
+                            forecast[monthYearKey]['Crédito (Miguel)'] += monthlyAmount;
                         } else if (item.cartao === 'Outro') {
                             forecast[monthYearKey]['Outros Cartões'] += monthlyAmount;
                         }
@@ -783,9 +784,9 @@
                 const row = monthlyPaymentsTableBody.insertRow();
                 row.insertCell().textContent = monthData.monthYearKey;
                 row.cells[0].classList.add('whitespace-nowrap');
-                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Meu)']);
+                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Victor)']); // Atualizado
                 row.cells[1].classList.add('text-right');
-                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Irmão)']);
+                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Miguel)']); // Atualizado
                 row.cells[2].classList.add('text-right');
                 row.insertCell().textContent = window.formatCurrency(monthData['Outros Cartões']);
                 row.cells[3].classList.add('text-right');
