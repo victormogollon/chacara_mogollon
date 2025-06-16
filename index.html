@@ -405,6 +405,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Pago?</th> <!-- Nova coluna para status de pagamento -->
                                 <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
@@ -426,6 +427,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Pago?</th> <!-- Nova coluna para status de pagamento -->
                                 <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
@@ -447,6 +449,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Pago?</th> <!-- Nova coluna para status de pagamento -->
                                 <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
@@ -468,6 +471,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
                                 <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
+                                <th class="py-2 px-4 border-b text-center text-gray-700">Pago?</th> <!-- Nova coluna para status de pagamento -->
                                 <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
                             </tr>
                         </thead>
@@ -508,7 +512,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, addDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Importações do Firestore: Adicionado 'doc' e 'updateDoc'
+        import { getFirestore, addDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ===========================================================================================
         // ATENÇÃO: VOCÊ PRECISA SUBSTITUIR ESTES VALORES COM A SUA CONFIGURAÇÃO DO FIREBASE
@@ -516,7 +521,6 @@
         // ===========================================================================================
 
         // COLE AQUI O OBJETO firebaseConfig QUE VOCÊ OBTERÁ DO SEU PROJETO FIREBASE
-        // (Exemplo com seus valores que você forneceu, mas mantenha-os corretos)
         const firebaseConfig = {
             apiKey: "AIzaSyDELdHka4K6PvyRNRsH3gLcGpOGejKoAas",
             authDomain: "chacara-mogollon.firebaseapp.com",
@@ -583,7 +587,6 @@
         };
 
         // Inicializa o Firebase
-        // Verifica se projectId foi fornecido e não é o placeholder antes de inicializar o Firebase
         if (!firebaseConfig.projectId || firebaseConfig.projectId === "SEU_PROJECT_ID_AQUI") {
             console.error("Erro: 'projectId' não fornecido ou é o placeholder na firebaseConfig. Por favor, preencha a configuração do Firebase.");
             window.showCustomAlert("Erro de Configuração: Por favor, insira o seu 'projectId' REAL e COMPLETO na seção `firebaseConfig` do código HTML para que o aplicativo possa se conectar ao Firebase.");
@@ -649,10 +652,10 @@
                     'material-obra': [],
                     'gastos-indiretos': []
                 };
-                snapshot.forEach(doc => {
-                    const data = doc.data();
+                snapshot.forEach(docItem => { // Renomeado 'doc' para 'docItem' para evitar conflitos
+                    const data = docItem.data();
                     if (data.category && newExpenses[data.category]) {
-                        newExpenses[data.category].push({ id: doc.id, ...data });
+                        newExpenses[data.category].push({ id: docItem.id, ...data });
                     }
                 });
                 window.expenses = newExpenses;
@@ -663,6 +666,26 @@
                 window.showCustomAlert("Erro ao carregar dados do Firestore. As atualizações podem não ser em tempo real.");
             });
         }
+
+        // Função para atualizar o status 'pago' de um gasto no Firestore
+        window.updatePaidStatus = async (expenseId, isPaid) => {
+            if (!isAuthReady || !db || !expensesCollectionPath) {
+                window.showCustomAlert("Não é possível atualizar o status de pagamento: autenticação/DB/caminho não prontos.");
+                return;
+            }
+            try {
+                // A função 'doc' é utilizada para criar uma referência a um documento específico
+                const expenseRef = doc(db, expensesCollectionPath, expenseId);
+                // A função 'updateDoc' é utilizada para atualizar campos de um documento existente
+                await updateDoc(expenseRef, {
+                    isPaid: isPaid
+                });
+                console.log(`Status de pagamento do gasto ${expenseId} atualizado para ${isPaid}.`);
+            } catch (error) {
+                console.error("Erro ao atualizar status de pagamento:", error);
+                window.showCustomAlert("Erro ao atualizar status de pagamento. Tente novamente.");
+            }
+        };
 
         // Funções auxiliares tornadas globais
         window.formatCurrency = (value) => new Intl.NumberFormat('pt-BR', {
@@ -882,7 +905,7 @@
             if (categoryExpenses.length === 0) {
                 const row = tableBody.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 8;
+                cell.colSpan = 9; // Aumentado para incluir a nova coluna 'Pago?'
                 cell.textContent = 'Nenhum gasto registrado nesta categoria.';
                 cell.classList.add('text-center', 'py-4', 'text-gray-500');
             } else {
@@ -899,6 +922,19 @@
                     row.insertCell().textContent = item.cartao;
                     row.insertCell().textContent = window.formatCurrency(item.valorParcela);
                     row.cells[6].classList.add('text-right');
+
+                    // Coluna 'Pago?' com checkbox
+                    const paidCell = row.insertCell();
+                    const paidCheckbox = document.createElement('input');
+                    paidCheckbox.type = 'checkbox';
+                    paidCheckbox.checked = item.isPaid || false; // Define o estado do checkbox
+                    paidCheckbox.classList.add('form-checkbox', 'h-5', 'w-5', 'text-blue-600');
+                    // Adiciona um listener para atualizar o status no Firestore
+                    paidCheckbox.onchange = (event) => {
+                        window.updatePaidStatus(item.id, event.target.checked);
+                    };
+                    paidCell.appendChild(paidCheckbox);
+                    paidCell.classList.add('text-center');
 
                     const actionsCell = row.insertCell();
                     const deleteButton = document.createElement('button');
@@ -988,6 +1024,7 @@
                     parcelas,
                     cartao,
                     valorParcela,
+                    isPaid: false, // Adicionado novo campo isPaid com valor padrão false
                     timestamp: serverTimestamp()
                 };
 
