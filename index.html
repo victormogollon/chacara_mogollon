@@ -379,6 +379,31 @@
             </div>
         </section>
 
+        <!-- Nova Seção para Gráficos Detalhados -->
+        <section id="detailed-charts" class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-3xl font-semibold mb-6 text-center" style="color: var(--color-emphasis);">Análise Gráfica Detalhada</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-2xl font-bold mb-4 text-center" style="color: var(--color-dark-text);">Gastos Mês a Mês</h3>
+                    <div class="chart-container">
+                        <canvas id="monthlyExpensesChart"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-bold mb-4 text-center" style="color: var(--color-dark-text);">Acumulado Total de Gastos</h3>
+                    <div class="chart-container">
+                        <canvas id="cumulativeExpensesChart"></canvas>
+                    </div>
+                </div>
+                 <div>
+                    <h3 class="text-2xl font-bold mb-4 text-center" style="color: var(--color-dark-text);">Status de Pagamento</h3>
+                    <div class="chart-container">
+                        <canvas id="paidUnpaidChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section id="detailed-expenses" class="bg-white rounded-lg shadow-md p-6 mb-8">
             <h2 class="text-3xl font-semibold mb-6 text-center" style="color: var(--color-emphasis);">Detalhes dos Gastos por Categoria</h2>
             <p class="text-lg text-gray-800 leading-relaxed mb-6">
@@ -469,7 +494,7 @@
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Unidades</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor R$</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Parcelas</th>
-                                <th class="py-2 px-4 border-b text-left text-gray-700 whitespace-nowrap">Cartão</th>
+                                <th class="py-2 px-4 border-b text-left text-gray-70owrap">Cartão</th>
                                 <th class="py-2 px-4 border-b text-right text-gray-700 whitespace-nowrap">Valor Parcela</th>
                                 <th class="py-2 px-4 border-b text-center text-gray-700">Pago?</th> <!-- Nova coluna para status de pagamento -->
                                 <th class="py-2 px-4 border-b text-center text-gray-700">Ações</th>
@@ -512,7 +537,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // Importações do Firestore: Adicionado 'doc' e 'updateDoc'
         import { getFirestore, addDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ===========================================================================================
@@ -530,16 +554,11 @@
             appId: "1:37237249124:web:532839cbdf56ad14fa7b71"
         };
 
-        // --- INÍCIO: LINHAS DE DEPURAGEM ---
         console.log("firebaseConfig carregada:", firebaseConfig);
         console.log("Valor de firebaseConfig.projectId:", firebaseConfig.projectId);
         console.log("Tipo de firebaseConfig.projectId:", typeof firebaseConfig.projectId);
-        // --- FIM: LINHAS DE DEPURAGEM ---
 
-        // Defina o appId (geralmente é o mesmo que o projectId na sua configuração do Firebase)
         const appId = firebaseConfig.projectId;
-
-        // Não é necessário um token de autenticação inicial para login anônimo
         const initialAuthToken = null;
 
         let app;
@@ -548,7 +567,7 @@
         let userId = null;
         let isAuthReady = false;
 
-        // Dados da aplicação (serão populados e sincronizados com o Firestore)
+        // Variáveis globais para os dados da aplicação e categorias
         window.expenses = {
             'mao-de-obra': [],
             'ferramentas': [],
@@ -556,7 +575,6 @@
             'gastos-indiretos': []
         };
 
-        // Mapeamento de categorias (agora global)
         window.categories = {
             'mao-de-obra': 'Mão de Obra',
             'ferramentas': 'Ferramentas',
@@ -564,7 +582,14 @@
             'gastos-indiretos': 'Gastos Indiretos'
         };
 
-        // Função para mostrar alertas personalizados (substitui alert()) - Definida antes de qualquer uso
+        // Variáveis para os objetos Chart.js
+        let expensesChart;
+        let monthlyExpensesChart;
+        let cumulativeExpensesChart;
+        let paidUnpaidChart;
+        let activeDetailedTab = 'mao-de-obra';
+
+        // --- Funções Auxiliares Globalmente Acessíveis ---
         window.showCustomAlert = (message) => {
             const customAlertModal = document.getElementById('customAlertModal');
             const customAlertMessage = document.getElementById('customAlertMessage');
@@ -572,7 +597,7 @@
 
             if (!customAlertModal || !customAlertMessage || !alertOkButton) {
                 console.error("Elementos do modal de alerta não encontrados. Não é possível exibir o alerta personalizado.");
-                console.log("ALERTA: " + message); // Fallback para console.log
+                console.log("ALERTA: " + message);
                 return;
             }
 
@@ -586,108 +611,6 @@
             alertOkButton.addEventListener('click', closeAlert);
         };
 
-        // Inicializa o Firebase
-        if (!firebaseConfig.projectId || firebaseConfig.projectId === "SEU_PROJECT_ID_AQUI") {
-            console.error("Erro: 'projectId' não fornecido ou é o placeholder na firebaseConfig. Por favor, preencha a configuração do Firebase.");
-            window.showCustomAlert("Erro de Configuração: Por favor, insira o seu 'projectId' REAL e COMPLETO na seção `firebaseConfig` do código HTML para que o aplicativo possa se conectar ao Firebase.");
-        } else {
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                console.log("Firebase inicializado com sucesso.");
-            } catch (error) {
-                console.error("Erro ao inicializar Firebase. Verifique sua firebaseConfig:", error);
-                window.showCustomAlert("Erro ao inicializar o Firebase. Verifique se a sua configuração está correta. Algumas funcionalidades podem não estar disponíveis.");
-            }
-        }
-
-        // Autentica o usuário e configura o listener do Firestore
-        if (auth && db) {
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
-                    isAuthReady = true;
-                    console.log("Usuário autenticado:", userId);
-                    setupFirestoreListener();
-                } else {
-                    console.log("Nenhum usuário autenticado, tentando login anônimo...");
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                            console.log("Login com token customizado bem-sucedido.");
-                        } else {
-                            await signInAnonymously(auth);
-                            console.log("Login anônimo bem-sucedido.");
-                        }
-                    } catch (error) {
-                        console.error("Erro ao fazer login:", error);
-                        window.showCustomAlert("Erro ao fazer login. Você não poderá salvar/sincronizar dados.");
-                    }
-                }
-            });
-        } else {
-             console.warn("Firebase Auth ou Database não estão disponíveis. Autenticação será ignorada.");
-             window.showCustomAlert("Não foi possível carregar os serviços do Firebase (Autenticação ou Banco de Dados). Funcionalidades de sincronização podem não estar disponíveis.");
-        }
-
-        // Coleção Firestore para armazenar gastos
-        const expensesCollectionPath = (appId && firebaseConfig.projectId && firebaseConfig.projectId !== "SEU_PROJECT_ID_AQUI") ? `artifacts/${appId}/public/data/expenses` : null;
-
-        // Função para configurar o listener em tempo real do Firestore
-        function setupFirestoreListener() {
-            if (!isAuthReady || !db || !expensesCollectionPath) {
-                console.warn("Firestore listener não pode ser configurado: Autenticação/DB/Caminho não prontos. Verifique sua configuração do Firebase.");
-                window.showCustomAlert("O sistema de sincronização não pode ser iniciado. Por favor, verifique a configuração do seu projeto Firebase.");
-                return;
-            }
-
-            const q = collection(db, expensesCollectionPath);
-
-            onSnapshot(q, (snapshot) => {
-                const newExpenses = {
-                    'mao-de-obra': [],
-                    'ferramentas': [],
-                    'material-obra': [],
-                    'gastos-indiretos': []
-                };
-                snapshot.forEach(docItem => { // Renomeado 'doc' para 'docItem' para evitar conflitos
-                    const data = docItem.data();
-                    if (data.category && newExpenses[data.category]) {
-                        newExpenses[data.category].push({ id: docItem.id, ...data });
-                    }
-                });
-                window.expenses = newExpenses;
-                console.log("Dados do Firestore atualizados:", window.expenses);
-                window.updateSummary();
-            }, (error) => {
-                console.error("Erro ao ouvir o Firestore:", error);
-                window.showCustomAlert("Erro ao carregar dados do Firestore. As atualizações podem não ser em tempo real.");
-            });
-        }
-
-        // Função para atualizar o status 'pago' de um gasto no Firestore
-        window.updatePaidStatus = async (expenseId, isPaid) => {
-            if (!isAuthReady || !db || !expensesCollectionPath) {
-                window.showCustomAlert("Não é possível atualizar o status de pagamento: autenticação/DB/caminho não prontos.");
-                return;
-            }
-            try {
-                // A função 'doc' é utilizada para criar uma referência a um documento específico
-                const expenseRef = doc(db, expensesCollectionPath, expenseId);
-                // A função 'updateDoc' é utilizada para atualizar campos de um documento existente
-                await updateDoc(expenseRef, {
-                    isPaid: isPaid
-                });
-                console.log(`Status de pagamento do gasto ${expenseId} atualizado para ${isPaid}.`);
-            } catch (error) {
-                console.error("Erro ao atualizar status de pagamento:", error);
-                window.showCustomAlert("Erro ao atualizar status de pagamento. Tente novamente.");
-            }
-        };
-
-        // Funções auxiliares tornadas globais
         window.formatCurrency = (value) => new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL'
@@ -712,18 +635,62 @@
             return lines;
         };
 
-        let expensesChart;
-        let activeDetailedTab = 'mao-de-obra';
+        // --- Funções de Cálculo de Dados para os Gráficos ---
+        // Funções para cálculo de dados para gráficos, tornadas globais
+        window.getMonthlyExpenses = () => {
+            const monthlyTotals = {};
+            Object.values(window.expenses).flat().forEach(item => {
+                const date = new Date(item.data + 'T00:00:00');
+                const monthYear = date.toLocaleString('pt-BR', { month: 'short', year: 'numeric' });
+                monthlyTotals[monthYear] = (monthlyTotals[monthYear] || 0) + item.valor;
+            });
 
-        function calculateMonthlyForecast() {
+            const sortedMonths = Object.keys(monthlyTotals).sort((a, b) => {
+                const dateA = new Date(a.replace(/(\w{3})\./, '$1 1,'));
+                const dateB = new Date(b.replace(/(\w{3})\./, '$1 1,'));
+                return dateA - dateB;
+            });
+
+            return sortedMonths.map(month => ({
+                month: month,
+                total: monthlyTotals[month]
+            }));
+        };
+
+        window.getCumulativeExpenses = () => {
+            const monthlyData = window.getMonthlyExpenses();
+            let cumulativeTotal = 0;
+            return monthlyData.map(data => {
+                cumulativeTotal += data.total;
+                return {
+                    month: data.month,
+                    cumulativeTotal: cumulativeTotal
+                };
+            });
+        };
+
+        window.getPaidUnpaidTotals = () => {
+            let paidTotal = 0;
+            let unpaidTotal = 0;
+            Object.values(window.expenses).flat().forEach(item => {
+                if (item.isPaid) {
+                    paidTotal += item.valor;
+                } else {
+                    unpaidTotal += item.valor;
+                }
+            });
+            return { paidTotal, unpaidTotal };
+        };
+
+        // Função para calcular a previsão de pagamentos mensais (tornada global)
+        window.calculateMonthlyForecast = () => {
             const forecast = {};
             const today = new Date();
             const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
             Object.values(window.expenses).flat().forEach(item => {
-                // Modificado para usar "Crédito (Victor)" e "Crédito (Miguel)"
                 if (item.parcelas > 1 && (item.cartao === 'Crédito (Victor)' || item.cartao === 'Crédito (Miguel)' || item.cartao === 'Outro')) {
-                    const startDate = new Date(item.data);
+                    const startDate = new Date(item.data + 'T00:00:00'); // Garante data UTC
                     const monthlyAmount = item.valor / item.parcelas;
 
                     for (let i = 0; i < item.parcelas; i++) {
@@ -737,17 +704,17 @@
 
                         if (!forecast[monthYearKey]) {
                             forecast[monthYearKey] = {
-                                'Crédito (Victor)': 0, // Atualizado
-                                'Crédito (Miguel)': 0, // Atualizado
+                                'Crédito (Victor)': 0,
+                                'Crédito (Miguel)': 0,
                                 'Outros Cartões': 0,
                                 'Total Mensal': 0,
                                 'dateOrder': paymentDate.getTime()
                             };
                         }
 
-                        if (item.cartao === 'Crédito (Victor)') { // Atualizado
+                        if (item.cartao === 'Crédito (Victor)') {
                             forecast[monthYearKey]['Crédito (Victor)'] += monthlyAmount;
-                        } else if (item.cartao === 'Crédito (Miguel)') { // Atualizado
+                        } else if (item.cartao === 'Crédito (Miguel)') {
                             forecast[monthYearKey]['Crédito (Miguel)'] += monthlyAmount;
                         } else if (item.cartao === 'Outro') {
                             forecast[monthYearKey]['Outros Cartões'] += monthlyAmount;
@@ -763,13 +730,184 @@
             })).sort((a, b) => a.dateOrder - b.dateOrder);
 
             return sortedForecast;
-        }
+        };
 
-        function renderMonthlyForecast() {
+
+        // --- Funções de Renderização dos Gráficos ---
+        window.renderMonthlyExpensesChart = () => {
+            const monthlyData = window.getMonthlyExpenses();
+            const labels = monthlyData.map(data => data.month);
+            const data = monthlyData.map(data => data.total);
+
+            const ctx = document.getElementById('monthlyExpensesChart').getContext('2d');
+            if (monthlyExpensesChart) {
+                monthlyExpensesChart.destroy();
+            }
+            monthlyExpensesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total de Gastos',
+                        data: data,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Valor (R$)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Mês/Ano'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Total: ' + window.formatCurrency(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        };
+
+        window.renderCumulativeExpensesChart = () => {
+            const cumulativeData = window.getCumulativeExpenses();
+            const labels = cumulativeData.map(data => data.month);
+            const data = cumulativeData.map(data => data.cumulativeTotal);
+
+            const ctx = document.getElementById('cumulativeExpensesChart').getContext('2d');
+            if (cumulativeExpensesChart) {
+                cumulativeExpensesChart.destroy();
+            }
+            cumulativeExpensesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Acumulado Total',
+                        data: data,
+                        backgroundColor: 'rgba(153, 102, 255, 0.6)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Valor Acumulado (R$)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Mês/Ano'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Acumulado: ' + window.formatCurrency(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        };
+
+        window.renderPaidUnpaidChart = () => {
+            const { paidTotal, unpaidTotal } = window.getPaidUnpaidTotals();
+
+            const labels = ['Pago', 'A Pagar'];
+            const data = [paidTotal, unpaidTotal];
+            const backgroundColors = ['#28A745', '#DC3545'];
+
+            const ctx = document.getElementById('paidUnpaidChart').getContext('2d');
+            if (paidUnpaidChart) {
+                paidUnpaidChart.destroy();
+            }
+            paidUnpaidChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: {
+                                    size: 14
+                                },
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--color-dark-text').trim(),
+                                boxWidth: 20,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += window.formatCurrency(context.parsed);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        };
+
+        // Função para renderizar a previsão de pagamentos mensais (função agora global)
+        window.renderMonthlyForecast = () => {
             const monthlyPaymentsTableBody = document.getElementById('monthly-payments-table-body');
             monthlyPaymentsTableBody.innerHTML = '';
 
-            const forecastData = calculateMonthlyForecast();
+            // Agora chamando a função global calculateMonthlyForecast
+            const forecastData = window.calculateMonthlyForecast();
 
             if (forecastData.length === 0) {
                 const row = monthlyPaymentsTableBody.insertRow();
@@ -784,17 +922,19 @@
                 const row = monthlyPaymentsTableBody.insertRow();
                 row.insertCell().textContent = monthData.monthYearKey;
                 row.cells[0].classList.add('whitespace-nowrap');
-                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Victor)']); // Atualizado
+                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Victor)']);
                 row.cells[1].classList.add('text-right');
-                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Miguel)']); // Atualizado
+                row.insertCell().textContent = window.formatCurrency(monthData['Crédito (Miguel)']);
                 row.cells[2].classList.add('text-right');
                 row.insertCell().textContent = window.formatCurrency(monthData['Outros Cartões']);
                 row.cells[3].classList.add('text-right');
                 row.insertCell().textContent = window.formatCurrency(monthData['Total Mensal']);
                 row.cells[4].classList.add('text-right', 'font-bold');
             });
-        }
+        };
 
+
+        // --- Função Principal de Atualização da UI ---
         window.updateSummary = () => {
             const summaryTableBody = document.getElementById('summary-table-body');
             summaryTableBody.innerHTML = '';
@@ -881,7 +1021,7 @@
                                         if (context.parsed !== null) {
                                             label += window.formatCurrency(context.parsed);
                                         }
-                                        return label;
+                                        return label; // Movido para aqui
                                     }
                                 }
                             }
@@ -890,9 +1030,14 @@
                 });
             }
             renderDetailedExpenses(activeDetailedTab);
-            renderMonthlyForecast();
+            window.renderMonthlyForecast();
+            window.renderMonthlyExpensesChart();
+            window.renderCumulativeExpensesChart();
+            window.renderPaidUnpaidChart();
         };
 
+
+        // --- Funções de Renderização da Tabela Detalhada ---
         function renderDetailedExpenses(categoryKey) {
             const tableBodyId = `detailed-${categoryKey}-table-body`;
             const tableBody = document.getElementById(tableBodyId);
@@ -906,7 +1051,7 @@
             if (categoryExpenses.length === 0) {
                 const row = tableBody.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 9; // Aumentado para incluir a nova coluna 'Pago?'
+                cell.colSpan = 9;
                 cell.textContent = 'Nenhum gasto registrado nesta categoria.';
                 cell.classList.add('text-center', 'py-4', 'text-gray-500');
             } else {
@@ -924,13 +1069,11 @@
                     row.insertCell().textContent = window.formatCurrency(item.valorParcela);
                     row.cells[6].classList.add('text-right');
 
-                    // Coluna 'Pago?' com checkbox
                     const paidCell = row.insertCell();
                     const paidCheckbox = document.createElement('input');
                     paidCheckbox.type = 'checkbox';
-                    paidCheckbox.checked = item.isPaid || false; // Define o estado do checkbox
+                    paidCheckbox.checked = item.isPaid || false;
                     paidCheckbox.classList.add('form-checkbox', 'h-5', 'w-5', 'text-blue-600');
-                    // Adiciona um listener para atualizar o status no Firestore
                     paidCheckbox.onchange = (event) => {
                         window.updatePaidStatus(item.id, event.target.checked);
                     };
@@ -963,6 +1106,86 @@
             }
         }
 
+        // --- Inicialização do Firebase e Listener ---
+        if (!firebaseConfig.projectId || firebaseConfig.projectId === "SEU_PROJECT_ID_AQUI") {
+            console.error("Erro: 'projectId' não fornecido ou é o placeholder na firebaseConfig. Por favor, preencha a configuração do Firebase.");
+            window.showCustomAlert("Erro de Configuração: Por favor, insira o seu 'projectId' REAL e COMPLETO na seção `firebaseConfig` do código HTML para que o aplicativo possa se conectar ao Firebase.");
+        } else {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                console.log("Firebase inicializado com sucesso.");
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase. Verifique sua firebaseConfig:", error);
+                window.showCustomAlert("Erro ao inicializar o Firebase. Verifique se a sua configuração está correta. Algumas funcionalidades podem não estar disponíveis.");
+            }
+        }
+
+        const expensesCollectionPath = (appId && firebaseConfig.projectId && firebaseConfig.projectId !== "SEU_PROJECT_ID_AQUI") ? `artifacts/${appId}/public/data/expenses` : null;
+
+        function setupFirestoreListener() {
+            if (!isAuthReady || !db || !expensesCollectionPath) {
+                console.warn("Firestore listener não pode ser configurado: Autenticação/DB/Caminho não prontos. Verifique sua configuração do Firebase.");
+                window.showCustomAlert("O sistema de sincronização não pode ser iniciado. Por favor, verifique a configuração do seu projeto Firebase.");
+                return;
+            }
+
+            const q = collection(db, expensesCollectionPath);
+
+            onSnapshot(q, (snapshot) => {
+                const newExpenses = {
+                    'mao-de-obra': [],
+                    'ferramentas': [],
+                    'material-obra': [],
+                    'gastos-indiretos': []
+                };
+                snapshot.forEach(docItem => {
+                    const data = docItem.data();
+                    if (data.category && newExpenses[data.category]) {
+                        newExpenses[data.category].push({ id: docItem.id, ...data });
+                    }
+                });
+                window.expenses = newExpenses;
+                console.log("Dados do Firestore atualizados:", window.expenses);
+                window.updateSummary();
+            }, (error) => {
+                console.error("Erro ao ouvir o Firestore:", error);
+                window.showCustomAlert("Erro ao carregar dados do Firestore. As atualizações podem não ser em tempo real.");
+            });
+        }
+
+        if (auth && db) {
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
+                    isAuthReady = true;
+                    console.log("Usuário autenticado:", userId);
+                    setupFirestoreListener();
+                } else {
+                    console.log("Nenhum usuário autenticado, tentando login anônimo...");
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                            console.log("Login com token customizado bem-sucedido.");
+                        } else {
+                            await signInAnonymously(auth);
+                            console.log("Login anônimo bem-sucedido.");
+                        }
+                    } catch (error) {
+                        console.error("Erro ao fazer login:", error);
+                        window.showCustomAlert("Erro ao fazer login. Você não poderá salvar/sincronizar dados.");
+                    }
+                }
+            });
+        } else {
+             console.warn("Firebase Auth ou Database não estão disponíveis. Autenticação será ignorada.");
+             window.showCustomAlert("Não foi possível carregar os serviços do Firebase (Autenticação ou Banco de Dados). Funcionalidades de sincronização podem não estar disponíveis.");
+        }
+
+
+        // --- Event Listeners ---
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
 
@@ -1025,7 +1248,7 @@
                     parcelas,
                     cartao,
                     valorParcela,
-                    isPaid: false, // Adicionado novo campo isPaid com valor padrão false
+                    isPaid: false,
                     timestamp: serverTimestamp()
                 };
 
