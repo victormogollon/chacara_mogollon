@@ -1106,6 +1106,26 @@
             }
         }
 
+        // --- Função para atualizar o status de pagamento no Firestore ---
+        window.updatePaidStatus = async (expenseId, isPaidStatus) => {
+            if (!isAuthReady || !db || !expensesCollectionPath) {
+                window.showCustomAlert("Não é possível atualizar o status: autenticação/DB/caminho não prontos.");
+                return;
+            }
+
+            try {
+                const expenseRef = doc(db, expensesCollectionPath, expenseId);
+                await updateDoc(expenseRef, {
+                    isPaid: isPaidStatus
+                });
+                console.log(`Status de pagamento do documento ${expenseId} atualizado para ${isPaidStatus}`);
+                // Não é necessário chamar updateSummary aqui, pois o onSnapshot cuidará disso
+            } catch (error) {
+                console.error("Erro ao atualizar o status de pagamento:", error);
+                window.showCustomAlert("Erro ao atualizar o status de pagamento. Tente novamente.");
+            }
+        };
+
         // --- Inicialização do Firebase e Listener ---
         if (!firebaseConfig.projectId || firebaseConfig.projectId === "SEU_PROJECT_ID_AQUI") {
             console.error("Erro: 'projectId' não fornecido ou é o placeholder na firebaseConfig. Por favor, preencha a configuração do Firebase.");
