@@ -548,7 +548,7 @@
         const firebaseConfig = {
             apiKey: "AIzaSyDELdHka4K6PvyRNRsH3gLcGpOGejKoAas",
             authDomain: "chacara-mogollon.firebaseapp.com",
-            projectId: "chacara-mogollon",
+            projectId: "chacara-mogollon", // <<<-- ALERTA: SUBSTITUA ESTE VALOR PELO SEU PROJECT ID REAL DO FIREBASE!
             storageBucket: "chacara-mogollon.firebasestorage.app",
             messagingSenderId: "37237249124",
             appId: "1:37237249124:web:532839cbdf56ad14fa7b71"
@@ -1021,8 +1021,8 @@
                                         if (context.parsed !== null) {
                                             label += window.formatCurrency(context.parsed);
                                         }
-                                        return label; // Movido para aqui
-                                    }
+                                        return label;
+                                    } // Fechamento correto da função 'label'
                                 }
                             }
                         }
